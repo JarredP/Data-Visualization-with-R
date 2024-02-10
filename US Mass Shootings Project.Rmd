@@ -1,0 +1,434 @@
+---
+title: "Analysis of US Mass Shooting Incidents 1982-2022"
+author: "Jarred Petersen"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Investigation Into US Mass Shootings 1982-2022
+
+*Please note this is not a politically motivated project. This project was used to continue to develop my data analysis and visualization techniques* 
+
+The issue of guns and gun control is a topic that is constantly up for debate in the US. During this R markdown project, I wanted to remove politics from the equation, and use data analysis and visualization techniques to investigate and analyze several variables and their link to US mass shooting incidents to better understand this issue. The data set I will use for this project contains information relating to US mass shooting incidents from 1982-2022. It is important to note that this data set does not contain information on all mass shooting incidents that have occurred during this time frame. 
+
+*Link to data*
+
+https://www.kaggle.com/datasets/zusmani/us-mass-shootings-last-50-years?datasetId=2778&language=R
+
+
+```{r}
+library(readr)          #Load readr package
+library(ggplot2)        #load ggplot package
+library(tidyverse)      #load tidyverse package
+library(dplyr)          #load dplyr package
+library(plotly)         #load plotly package
+```
+
+
+### Read in, Clean & Prepare Date
+
+Before I build any visualizations from this data set, I will have to read in, and clean and prepare the data.
+
+```{r}
+shootings<- read_csv("US Mass Shootings May 24 2022.csv")  #read in data as shootings data frame
+str(shootings)                                             #view structure of data frame
+```
+
+When I view the structure of the data set, I see there are 24 variables, and 128 observations.
+There are lots of things that I need to do to clean this data set so that it is ready to visualize.
+Firstly, I need to select the specific variables I want to look at, these are;
+case, location...2, location...8, year, gender, race, fatalities, injured, total victims, age of shooter, prior signs of mental illness, weapons obtained legally, type, latitude, longitude.
+
+```{r}
+shootings1 <- shootings %>%                     #Create shootings 1 data frame
+  select("case",                                #select following variables - case
+         "location...2",                        #location...2
+         "location...8",                        #location...3
+         "year",                                #year
+         "gender",                              #gender
+         "race",                                #race
+         "fatalities",                          #fatalities
+         "injured",                             #injured 
+         "total_victims",                       #total_victims
+         "age_of_shooter",                      #age of shooter
+         "prior_signs_mental_health_issues",    #prior signs mental health 
+         "weapons_obtained_legally",            #weapons obtained legally 
+         "type",                                #type
+         "latitude",                            #latitude
+         "longitude")                           #longitude
+```
+
+Now that I have the variables I want to look at, I will rename the location variables, and prior signs of mental health variable. I will also change the "-" values to NA and "unclear" values to NA.
+
+```{r}
+shootings2 <- rename(shootings1, State = location...2,    #rename: location...2 to state
+                     Location = location...8,             #location...8 to Location
+                     Mental.illness = prior_signs_mental_health_issues, #Mental.illness = Prior_signs_mental_health_issues
+                     Age = age_of_shooter) %>%            #age_of_shooter to Age
+  mutate(race = na_if(race, "-"),                         #replace'-' values with NA in race variable
+                      Age = na_if(Age, "-"),              # '-' to NA in Age variable
+         Mental.illness = na_if(Mental.illness, "-"),     #'-' to NA in Mental.illness variable
+         weapons_obtained_legally = na_if(weapons_obtained_legally, "-"), #'-' to NA in weapons obtained legally
+         race = na_if(race, "unclear"))                   #Change unclear in race to NA
+```
+
+Next, in the state variable I just want the state name, so I will remove the city characters.
+
+```{r}
+shootings2$State <- gsub('(.*, )','', shootings2$State) #Remove the city characters in state variable
+```
+
+Now that I have the state names, I will add the state codes from a separate data set. I want state codes present in the data tibble for when I create a map later on in the project. The 'plotly' package needed for map creation works with state codes.
+
+```{r}
+state_names <- read_csv("state_names.csv")           #read in data set with state codes 
+
+shootings3 <- merge(x = shootings2, y = state_names, #merge shootings2 data frame with state_names
+                    by = "State") %>%                #by "State" variable
+  
+  select("case",                                     #select the following variables - case
+         "Alpha code",                               #alpha code 
+         "Location",                                 #location
+         "year",                                     #year
+         "gender",                                   #gender
+         "race",                                     #race
+         "fatalities",                               #fatalities
+         "injured",                                  #injured
+         "total_victims",                            #total_victims
+         "Age",                                      #age
+         "Mental.illness",                           #mental.illness
+         "weapons_obtained_legally",                 #weapons_obtained_legally
+         "type",                                     #type
+         "latitude",                                 #latitude
+         "longitude")                                #longitude
+```
+
+Before changing the variables to factors, there are some values in variables that will be recognised as different factors, but are the same factor, for example, in race variable, there are "White" and "white" values that need mutating.
+
+```{r}
+shootings4 <-  shootings3 %>%                    #create shootings 4 data frame from shootings 3
+  mutate(gender = recode(gender, "M" = "Male",   #change 'M' values in gender to 'Male'
+                         "F" = "Female")) %>%    #Change 'F' Values in gender to 'Female'
+  mutate(race = recode(race, "white" = "White",  #change 'white' values in race to 'White'
+                         "black" = "Black")) %>% #Change 'black' values in race to 'Black'
+  mutate(Mental.illness= recode(Mental.illness, "yes" = "Yes", #recode 'yes' to "Yes"  mental illness 
+                                "Unclear" = "Unknown")) %>%   #'unclear' to "Unknown" mental illness
+  mutate(weapons_obtained_legally = recode(weapons_obtained_legally, #change weapons obtained legally
+                                           "yes" = "Yes",       #change 'yes' to 'Yes'
+                                           "\nYes" = "Yes"))    #"\nYes" values to 'Yes'
+```
+
+Now I will change the alpha code variable to state, and change race, gender, mental illness, type, year, and weapons obtained legally to factors, latitude and longitude to numeric, and fatalities, age, injured, total_victims to integers.
+
+```{r}
+USshootings <- rename(shootings4, State = 'Alpha code') %>%  #rename alpha code to state
+  mutate_at(c("Mental.illness", "weapons_obtained_legally",  #change listed variables
+              "race", "gender", "type"), as.factor) %>%      #to factors
+  mutate_at(c("latitude", "longitude", "year"), as.numeric) %>% #mutate listed variables to numeric data 
+  mutate_at(c("fatalities", "Age", "injured", "total_victims"), as.integer) #mutate listed to integers
+```
+
+### Explore Data
+
+Now that the data set has been cleaned, I can explore the data set.
+
+```{r}
+str(USshootings)       #view structure of USshootings data frame
+```
+
+Viewing the structure of the data set, there are 15 variables and 128 observations.
+
+```{r}
+summary(USshootings) #show summary statistics of variables in data frame
+```
+
+Above are the summary statistics for the 15 variables. For the factor data types, it gives the number of observations per factor. for the integer and numeric types, it gives us the min, 1st quartile, median, mean, 3rd quartile and max values.
+
+```{r}
+head(USshootings)    #View first 6 rows of data frame
+tail(USshootings)    #view last 6 rows of data frame
+```  
+
+Above, we have the first and last 6 rows of the data set.
+
+
+
+```{r}
+USshootings %>%                         #Use USshootings data frame
+  group_by(year) %>%                    #group by year and fatalities 
+  summarise(sum = sum(fatalities, na.rm = TRUE)) %>%  #sum of fatalities by year
+  ggplot(aes(year, sum))+               #plot year on x, sum of fatalities on y 
+  geom_point()+                         #plot scatter plot
+  geom_line()+                          #add line
+      labs(title = "Fatalities by Year ",               #Set labels -main title
+       subtitle = "Data collected 1982-2022",           #Set Subtitle 
+       x = "Year",                                      #x = year 
+       y = "Fatalities")+                               #y = Fatalities
+  theme_minimal()+                                      #use black and white theme
+  theme(plot.title = element_text(size = 20,            #size of title text at 20, 
+                                  face = "bold",        #make it bold,
+                                  color = "black"),    #color of text = black. 
+        axis.title.x = element_text(size = 14,          #set x axis title text to 14, 
+                                    face = "bold",      #make it bold,
+                                    color = "black"),  #color of text = black 
+        axis.title.y = element_text(size = 14,          #set y axis title text to 14,
+                                    face = "bold",      #make it bold,
+                                    color = "black"))  #set text color to black
+```
+
+Above we have a line graph that shows the total number of fatalities of US mass shootings by year. 
+This graph shows that the total number of fatalities by year from this data set has risen and fallen over the time period. However, it does appear that there has been a slight increase in fatalities from 1982-2022, especially from 2005. From 2005 there is a steep rise in fatalities up to its highest peak in the year 2012/13 before the total number of fatalities decreases again the next year. It is important to note that this is the total number of fatalities by year from the cases included in the data set, not the total number of fatalities by year from all the mass shooting cases during this time period.
+
+### Visualization 1 - Map of US Mass Shooting incidents
+
+The first visualization I will create is a map showing the location of all the mass shootings in the US from 1982-2022. 
+
+
+```{r}
+map_prop <- list(                      #setting up map properties by creating map_prop data frame
+  scope = 'usa',                       #scope focusing on USA
+  project = list(type = 'albers usa'), #using 'albers usa' projection 
+  showland = TRUE,                     #set show land to True
+  showlakes = TRUE,                    #set show lakes to True
+  lakecolor = "lightblue",             #lake color set to light blue
+  showsubunits = TRUE,                 #show subunits - the states
+  landcolor = toRGB('beige'))          #land color set to beige
+
+
+
+USshooting_map <-  USshootings %>%            #creating USshooting_map  from USshooting data frame
+  plot_geo(lat = ~latitude,                   #lat = latitude variable
+           lon = ~longitude,                  #lon = longitude variable
+           marker = list(size = ~fatalities,  #set marker parameters- size of markers by fatalities
+                         color = 'red'),      #Color of markers set to red
+           text = ~year,                      #Add year to hover text
+           hoverinfo = 'text') %>%            #hover info show 'text' which = year
+  config(displayModeBar = FALSE) %>%                        #do not show tool bar
+  layout(geo = map_prop,                                    #layout = map_prop data frame set up earlier 
+         title = "US Mass Shootings 1982-2022")             #add title
+
+USshooting_map                                              #view map
+```
+
+Above we have the map showing all US mass shootings in the US from 1982-2022. The hover information displays the year of the shooting. California has had a significant amount of shootings during this time period. Other states with a high number of mass shootings include Texas and Florida. The eastern states have had more mass shootings from 1982-2022 when compared to the western states. The mid western states appear to have had less mass shooting cases when compared with other states. 
+
+### Visualization 2 - Gender of Shooter
+
+Next, I will explore the gender of the shooters during this time period for mass and spree shootings.
+
+```{r}
+USshootings %>%                #use USshootings data frame
+  ggplot(aes(gender,           #plot gender on x
+             fill = gender))+  #fill color by gender
+  geom_bar()+                  #plot bar chart
+  facet_grid(~type)+           #facet grid by type
+  labs(title = "Gender of Shooters", #Set labs -main title
+       subtitle = "Data collected 1982-2022",           #Set Subtitle 
+       x = "Gender",                                    #x = Gender
+       y = "Number of Shooters",                        #y = Number of shooters
+       fill = "Gender")+                                            #legend title = Gender
+  scale_fill_manual("gender", values = c("Male" = "blue",           #scale fill color - Male = blue
+                                       "Female" = "red",            #Female = red
+                                       "Male & Female" = "green"))+ #Male & Female = green
+  theme_bw()+                                           #use black and white theme
+  theme(plot.title = element_text(size = 20,            #size of title text at 20, 
+                                  face = "bold",        #make it bold,
+                                  color = "black"),    #color of text = black. 
+        axis.title.x = element_text(size = 14,          #set x axis title text to 14, 
+                                    face = "bold",      #make it bold,
+                                    color = "black"),  #color of text = black 
+        axis.title.y = element_text(size = 14,          #set y axis title text to 14,
+                                    face = "bold",      #make it bold,
+                                    color = "black"),  #set text color to black
+        strip.text.x = element_text(face = "bold",      #edit facet grid text - make bold
+                                    color = "black"),  #color of text = black
+        legend.title = element_text(face = "bold",      #make legend title bold
+                                    color = "black"))  #make text color black
+```
+
+The above bar chart shows that there is significantly more male shooters for mass and spree shooting in the US from 1982-2022. For mass shootings, over 100 of the shooters were males, and 1 male was involved in a male & female mass shooting. For spree shootings, there was significantly more male shooters than female shooters.
+We can confidently conclude from this visualization majority of US mass shooting are carried out by males. 
+
+### Visualization 3 - Age of Shooter
+
+Next, I will investigate the age of the shooters that carried out the mass shooting cases present in this data set 1982-2022.
+
+```{r}
+USshootings %>%                     #Use USshootings dataframe
+  ggplot(aes(Age,                   #plot age on x
+             fill = type))+         #fill color by type
+  geom_histogram()+                 #plot histogram
+  scale_fill_manual("Type",                        #scale fill colors manually 
+                    values = c("Mass" = "red",     #mass values = red
+                               "Spree" = "blue"))+ #spree values = blue
+  facet_grid(~gender)+                             #facet_grid by gender
+    labs(title = "Age of Shooters",                #Set labs -main title
+       subtitle = "Data collected 1982-2022",           #Set Subtitle 
+       x = "Age",                                       #x = Age 
+       y = "Number of Shooters",                        #y = Number of shooters
+       fill = "Type")+                                  #legend title = Type
+  theme_bw()+                                           #use black and white theme
+  theme(plot.title = element_text(size = 20,            #size of title text at 20, 
+                                  face = "bold",        #make it bold,
+                                  color = "black"),    #color of text = black. 
+        axis.title.x = element_text(size = 14,          #set x axis title text to 14, 
+                                    face = "bold",      #make it bold,
+                                    color = "black"),  #color of text = black 
+        axis.title.y = element_text(size = 14,          #set y axis title text to 14,
+                                    face = "bold",      #make it bold,
+                                    color = "black"),  #set text color to black
+        strip.text.x = element_text(face = "bold",      #edit facet grid text - make bold
+                                    color = "black"),  #color of text = black
+        legend.title = element_text(face = "bold",      #make legend title bold
+                                    color = "black"))  #make text color black
+```
+
+Above we see the age distribution of the shooters by gender and color by shooting type.
+It is hard to conclude anything from female gender because there are so few female shooters. Therefore, I will look specifically at male shooters. 
+
+```{r}
+USshootings %>%                     #Use USshootings data frame
+  filter(gender == "Male") %>%      #filter where gender = "Male"
+  ggplot(aes(Age,                   #Plot Age on x axis
+             fill = type))+         #fill color by type
+  scale_fill_manual("Type",                        #scale fill colors manually 
+                    values = c("Mass" = "red",     #mass values = red
+                               "Spree" = "blue"))+ #spree values = blue
+  geom_histogram(binwidth = 5)+     #plot histogram with binwidth of 5
+    labs(title = "Age of Shooters", #Set labs -main title
+       subtitle = "Data collected 1982-2022",           #Set Subtitle 
+       x = "Age",                                       #x = Age
+       y = "Number of Shooters",                        #y = Number of shooters
+       fill = "Type")+                                  #legend title = Type
+  theme_minimal()+                                       #use minimal theme
+  theme(plot.title = element_text(size = 20,            #size of title text at 20, 
+                                  face = "bold",        #make it bold,
+                                  color = "black"),    #color of text = black. 
+        axis.title.x = element_text(size = 14,          #set x axis title text to 14, 
+                                    face = "bold",      #make it bold,
+                                    color = "black"),  #color of text = black 
+        axis.title.y = element_text(size = 14,          #set y axis title text to 14,
+                                    face = "bold",      #make it bold,
+                                    color = "black"),  #set text color to black
+        strip.text.x = element_text(face = "bold",      #edit facet grid text - make bold
+                                    color = "black"),  #color of text = black
+        legend.title = element_text(face = "bold",      #make legend title bold
+                                    color = "black"))  #make text color black
+```
+
+Looking at the age distribution of male shooters, it appears that the most frequent age of the male shooter is 20 - 45, with the highest frequency at age 20. This is true for both mass and spree shootings.
+We can conclude that most male shooters fall in the 20-40 range.
+
+### Visualization 4 - Race of Shooter
+
+The next visualization will plot the race of the shooter that carried out the mass shooting in the cases documented in the data set from 1982-2022.
+
+```{r}
+USshootings %>%                         #Use USshootings data frame
+  drop_na(race) %>%                     #drop na values in race variable
+  group_by(race) %>%                    #group by race
+  summarise(Count = n()) %>%            #summarize count of each race value
+  ggplot(aes(x = reorder(race, +Count), #plot race on x axis - reorder race by count in order
+             y = Count,                 #plot Count on Y
+         fill = race))+                 #fill bar color by race
+  geom_bar(stat = "identity")+          #plot a bar chart
+  scale_fill_viridis_d()+               #Scale fill using viridis discrete color
+  coord_flip()+                         #flip chart so its horizontal
+  labs(title = "Race of Shooters",      #Set labs -main title
+       subtitle = "Data collected 1982-2022",           #Set Subtitle 
+       x = "Race",                                      #x = Race
+       y = "Number of Shooters",                        #y = Number of shooters
+       fill = "Race")+                                  #legend title = race
+  theme_minimal()+                                      #use minimal theme
+  theme(plot.title = element_text(size = 20,            #size of title text at 20, 
+                                  face = "bold",        #make it bold,
+                                  color = "black"),    #color of text = black. 
+        axis.title.x = element_text(size = 14,          #set x axis title text to 14, 
+                                    face = "bold",      #make it bold,
+                                    color = "black"),  #color of text = black 
+        axis.title.y = element_text(size = 14,          #set y axis title text to 14,
+                                    face = "bold",      #make it bold,
+                                    color = "black"),  #set text color to black
+        strip.text.x = element_text(face = "bold",      #edit facet grid text - make bold
+                                    color = "black"),  #color of text = black
+        legend.title = element_text(face = "bold",      #make legend title bold
+                                    color = "black"))  #make text color black
+```
+
+The above bar chart shows that the majority of shooters during this time period were white, with a total count of 68 shooters from the 128 mass shootings. The second highest after white shooters were black shooters with 21. This means that white shooters were responsible for 47 more shootings than the next race. 
+Latino was the 3rd highest count with 10 shooters being Latino. 8 of the 128 shooters were Asian.  Native Americans had fewest amount of shooters during this time period.
+We can conclude from this visualization that the majority of mass shooting cases present in this data set from 1982-2022 were carried out by white shooters.
+
+
+### Visualization 5 - Did The Shooter Have Prior Signs of Mental Health & Did They Obtain The Weapons Legally?
+
+Finally, I will explore whether the shooters displayed prior signs of mental health issues, and weather the weapons used were obtained legally.
+  
+```{r}
+USshootings %>%                                              #Use USshootings data frame
+  drop_na(c(weapons_obtained_legally, Mental.illness)) %>%   #drop na values from 2 variables
+  group_by(Mental.illness, weapons_obtained_legally) %>%     #group by mental.illness
+  summarise(Count = n()) %>%                                #summarize count of each mental.illness value
+  ggplot(aes(x = reorder(Mental.illness, +Count),#plot mental.illness on x-reorder race by count in order
+             y = Count,                                      #plot Count on Y
+             fill = weapons_obtained_legally))+              #Fill color by weapons obtained legally
+  geom_bar(stat = "identity",                                #plot bar chart using identity stat
+           color = "black")+                                 #border color = black
+  scale_fill_brewer()+                                       #scale fill by brewer palette
+  coord_flip()+                                              #flip chart so its horizontal
+    labs(title = "Did The Shooter Display Prior Signs of Mental Health Illness?", #Set labs -main title
+       subtitle = "Data collected 1982-2022",           #Set Subtitle 
+       x = "Prior Signs of Mental Health illness",      #x = Prior Signs of Mental Health illness 
+       y = "Number of Shooters",                        #y = Number of shooters
+       fill = "Weapons Obtained Legally?")+             #legend title = weapons obtained legally?
+  theme_minimal()+                                      #Use minimal theme
+  theme(plot.title = element_text(size = 15,            #size of title text at 15, 
+                                  face = "bold",        #make it bold,
+                                  color = "black"),    #color of text = black. 
+        axis.title.x = element_text(size = 14,          #set x axis title text to 14, 
+                                    face = "bold",      #make it bold,
+                                    color = "black"),  #color of text = black 
+        axis.title.y = element_text(size = 14,          #set y axis title text to 14,
+                                    face = "bold",      #make it bold,
+                                    color = "black"),  #set text color to black
+        strip.text.x = element_text(face = "bold",      #edit facet grid text - make bold
+                                    color = "black"),  #color of text = black
+        legend.title = element_text(face = "bold",      #make legend title bold
+                                    color = "black"))  #make text color black
+```
+
+We can see that the most shooters did display prior signs of mental health, with 63 of the 128 shooters having mental health issues. 18 of the shooters did not display prior signs of mental health.
+There is a large proportion of shootings where it is unknown if the shooter displayed prior signs of mental illness and a very small proportion of shootings cases where the mental health of the shooter is waiting to be released. 
+What this graph clearly shows is that the vast majority of the guns used in the US mass shootings were obtained legally. 86 of the 128 shootings involved the use of guns that were obtained legally.
+16 shootings involved weapons that were not obtained legally. 
+It appears that approximately 48 of the 63 shooters who displayed prior signs of mental illness obtained the weapons used legally. Less than 10 of the shooters who displayed prior signs of mental illness used weapons obtained illegally. 
+
+We can conclude from chart that majority of shooters displayed prior signs of mental illness. However, despite mental illness issues, the majority still were able to obtain the weapons used legally. 
+The majority of shooters who did not display mental health issues, or the mental health of the shooter is unknown or yet to be releases also used weapons obtained legally.
+
+
+### Conclusion 
+
+From these visualizations, we can conclude the following findings;
+
+*Gender* 
+US mass shootings tend to be carried out by male shooters. The data showed that mass shooters 1982-2022 were significantly male.
+
+*Age*
+US mass shootings tend to be carried out by shooters aged 20-40. The data showed that mass shooters 1982-2022 typically fell into the 20-40 age range, with a highest peak at age 20.
+
+*Race*
+The majority of mass shootings tend to be carried out by white shooters. The data showed that the majority of mass shooters 1982-2022 were white.
+
+*Mental Health*
+
+US mass shootings tend to be carried out by shooters with some kind of mental illness. The data showed that the majority of shooters 1982-2022 displayed prior signs of mental health illnesses.
+
+
+*Legality of Weapons*
+
+Weapons used in US mass shootings are usually obtained legally. The data showed that the vast majority of guns used in US mass shootings 1982-2022 were obtained by the shooter legally. 
+
+
+Overall, we can conclude that US mass shootings incidents that took place 1982-2022 tend to be carried out by white males aged 20-40 with prior signs of mental illness with weapons they obtain legally.
