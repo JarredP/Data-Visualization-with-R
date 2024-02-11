@@ -1,4 +1,4 @@
-## Mental Health issues by Gender, Age, GPA, College Year and Marital Status
+# Investigation Into Mental Health issues In Students by Gender, Age, GPA, College Year and Marital Status
 
 After the COVID-19 pandemic, where people across the globe found
 themselves isolated away from loved ones in lock downs, the issue of
