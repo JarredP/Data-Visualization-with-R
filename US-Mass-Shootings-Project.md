@@ -419,6 +419,9 @@ all the mass shootings in the US from 1982-2022.
 
     #USshooting_map                                              #view map
 
+View interactive map here:
+file:///C:/Users/jarre/OneDrive/Documents/Map%20visualization.html
+
 Above we have the map showing all US mass shootings in the US from
 1982-2022. The hover information displays the year of the shooting.
 California has had a significant amount of shootings during this time
