@@ -1,4 +1,5 @@
 # Investigation Into Mental Health issues In Students by Gender, Age, GPA, College Year and Marital Status
+### Jarred Petersen
 
 After the COVID-19 pandemic, where people across the globe found
 themselves isolated away from loved ones in lock downs, the issue of
@@ -607,7 +608,7 @@ students.
                         values = c("Anxiety" = "grey",      #Anxiety = grey
                                    "Depression" = "navy",   #Depression = Navy 
                                    "Panic Attacks" = "darkred"))+ #Panic attacks = dark red
-      labs(title = "Mental Illess By Degree Course",        #set labels - Main title
+      labs(title = "Mental Illness By Degree Course",        #set labels - Main title
            x = "Type",                                      #x = "Did The Student Seek Treatment"
            y = "Percentage of Students")+                   #Y = "Percentage of Students"
       theme_minimal()+                                      #use minimal theme
