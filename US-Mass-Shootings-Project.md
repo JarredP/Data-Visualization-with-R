@@ -419,7 +419,7 @@ all the mass shootings in the US from 1982-2022.
 
     #USshooting_map                                              #view map
 
-View interactive map here:
+View screenshot of map in project files.
 
 Above we have the map showing all US mass shootings in the US from
 1982-2022. The hover information displays the year of the shooting.
